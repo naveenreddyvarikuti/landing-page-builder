@@ -1,124 +1,110 @@
-# Landing Page Builder — AI Agent
+# Landing Page Builder
 
-A LangGraph-powered multi-agent system that creates and edits landing pages (HTML/CSS) from natural language instructions.
+An AI agent that takes a plain English instruction and writes or edits landing page HTML and CSS files. You describe what you want, the agent figures out the steps, writes the code, checks its own work, and keeps going until everything is done.
 
-> "Create a SaaS landing page for Acme with a green CTA button and testimonials section"
-> → produces `output/index.html` + `output/styles.css`
+Give it something like:
+
+> "Create a SaaS landing page for Acme with a hero section, features grid, and a green CTA button"
+
+It produces `output/index.html` and `output/styles.css`.
 
 ---
 
-## How It Works
+## Architecture
+
+The system is built on LangGraph. There are five agents and a router node. Each agent has a single responsibility and they pass state through a shared object.
 
 ```
 User Instruction
-      │
-      ▼
-┌─────────────────┐
-│  Planning Agent  │  • Rewrites & enhances the query
-│                  │  • Decomposes into sub-questions
-│                  │  • Classifies intent
-│                  │    (create_html | create_css | edit_style |
-│                  │     add_section | add_functionality)
-└────────┬─────────┘
-         │  sub_questions[], enhanced_query, intent
-         ▼
-┌─────────────────┐
-│  Router Node    │  • Sets idx = 0 (current sub-question pointer)
-│                  │  • Tracks retry count per sub-question
-│                  │  • Triggers codebase re-indexing after file changes
-└────────┬─────────┘
-         │  current_sub_question (sub_questions[idx])
-         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     Manager Agent (ReAct)                    │
-│                                                              │
-│  Tools: read_file, list_dir                                  │
-│                                                              │
-│  For each sub-question, routes to one of:                    │
-│                                                              │
-│   ┌──────────────┐  ┌─────────────────┐  ┌───────────────┐ │
-│   │  RAG Agent   │  │ Code Gen Agent  │  │Code Edit Agent│ │
-│   │              │  │                 │  │  (ReAct)      │ │
-│   │ Retrieves    │  │ Generates new   │  │               │ │
-│   │ relevant     │  │ HTML/CSS code   │  │ Tools:        │ │
-│   │ code chunks  │  │ from scratch    │  │ edit_file     │ │
-│   │ via ChromaDB │  │                 │  │ create_file   │ │
-│   │              │  │                 │  │ read_file     │ │
-│   │              │  │                 │  │ list_dir      │ │
-│   └──────┬───────┘  └────────┬────────┘  └──────┬────────┘ │
-│          └──────────────────┬┘                  │          │
-└─────────────────────────────┼────────────────────┘          
-                               │ generated_code, changed_files[]
-                               ▼
-                    ┌─────────────────┐
-                    │ Validator Agent  │
-                    │                  │
-                    │ Receives:        │
-                    │ • code changes   │
-                    │ • current sub-q  │
-                    │ • AST of file    │
-                    │ • full context   │
-                    │                  │
-                    │ Returns:         │
-                    │ ✅ satisfied     │
-                    │ ❌ + feedback    │
-                    └────────┬─────────┘
-                             │
-               ┌─────────────┴──────────────┐
-               │                             │
-          ✅ Satisfied                  ❌ Failed
-               │                             │
-               ▼                             ▼
-        Router: idx += 1            Router: retries += 1
-        Re-index codebase           Feedback → Manager
-               │                   Route to relevant agent
-               │                   (up to max retries)
-               ▼
-        ┌──────────────────┐
-        │  More sub-        │
-        │  questions left? │
-        └──────┬─────┬─────┘
-               │Yes  │No
-               │     ▼
-               │   output/index.html
-               │   output/styles.css
-               │
-               ▼
+      |
+      v
+Planning Agent
+  Rewrites the query into a cleaner version
+  Breaks it into sub-questions
+  Classifies the intent
+  (create_html | create_css | edit_style | add_section | add_functionality)
+      |
+      v
+Router Node
+  Sets idx = 0 (points to the first sub-question)
+  Tracks retry count
+  Triggers re-indexing when files change
+      |
+      v  current_sub_question = sub_questions[idx]
+      |
+      v
+Manager Agent  (ReAct)
+  Tools: read_file, list_dir
+  Reads the codebase to understand context
+  Decides which agent to call for the current sub-question
+      |
+      +------------------+------------------+
+      |                  |                  |
+      v                  v                  v
+  RAG Agent        Code Gen Agent     Code Edit Agent  (ReAct)
+  Searches the     Writes new         Tools: edit_file, create_file,
+  codebase via     HTML/CSS           read_file, list_dir
+  ChromaDB         from scratch       Applies changes to files on disk
+      |                  |                  |
+      +------------------+------------------+
+                         |
+                         v
+                   Validator Agent
+                   Gets: code changes, current sub-question, AST of changed file
+                   Returns: satisfied or failed + feedback
+                         |
+              +----------+----------+
+              |                     |
+         Satisfied               Failed
+              |                     |
+              v                     v
+        Router: idx += 1      Router: retries += 1
+        Re-index codebase     Send feedback back to Manager
+              |
+        More sub-questions?
+              |
+         Yes  |  No
+              |   v
+              |  output/index.html
+              |  output/styles.css
+              v
         Manager Agent
-        (next sub-question)
+        (works on next sub-question)
 ```
 
 ---
 
-## Agent Responsibilities
+## What Each Agent Does
 
-| Agent | Type | Core Task | Tools |
+| Agent | Type | Responsibility | Tools |
 |---|---|---|---|
-| **Planning Agent** | LLM Chain | Decompose query, classify intent, rewrite query | — |
-| **Manager Agent** | ReAct | Route each sub-question to the right agent | `read_file`, `list_dir` |
-| **RAG Agent** | LLM + ChromaDB | Retrieve relevant code chunks semantically | ChromaDB retriever |
-| **Code Gen Agent** | LLM Chain | Generate new HTML/CSS from scratch | — |
-| **Code Edit Agent** | ReAct | Apply code changes to files on disk | `edit_file`, `create_file`, `read_file`, `list_dir` |
-| **Validator Agent** | LLM Chain | Verify the change satisfies the sub-question | AST parser |
+| Planning Agent | LLM Chain | Decomposes the query, classifies intent, rewrites it | none |
+| Manager Agent | ReAct | Reads codebase context, routes to the right agent | read_file, list_dir |
+| RAG Agent | LLM + ChromaDB | Finds relevant code chunks for the current sub-question | ChromaDB retriever |
+| Code Gen Agent | LLM Chain | Generates HTML/CSS when nothing exists yet | none |
+| Code Edit Agent | ReAct | Edits or creates files on disk | edit_file, create_file, read_file, list_dir |
+| Validator Agent | LLM Chain | Checks whether the change actually solves the sub-question | AST parser |
 
 ---
 
-## Shared State (`graph/state.py`)
+## Shared State
+
+Every node reads from and writes to a single `AgentState` object. This is what flows through the graph.
 
 ```python
 {
-  "query":                str,   # original user instruction
-  "enhanced_query":       str,   # rewritten by planning agent
+  "query":                str,   # original instruction from the user
+  "enhanced_query":       str,   # cleaned up version from the planning agent
   "intent":               str,   # e.g. "create_html", "edit_style"
-  "sub_questions":        list,  # decomposed steps
-  "idx":                  int,   # pointer to current sub-question
-  "retries":              int,   # retry count for current sub-question
+  "sub_questions":        list,  # the decomposed steps to solve
+  "idx":                  int,   # which sub-question we are on right now
+  "retries":              int,   # how many times we have retried this sub-question
   "current_sub_question": str,   # sub_questions[idx]
-  "retrieved_chunks":     list,  # from RAG agent
-  "generated_code":       str,   # from code gen / edit agent
-  "changed_files":        list,  # files modified on disk
-  "validation_feedback":  str,   # from validator if failed
-  "is_done":              bool   # all sub-questions resolved
+  "retrieved_chunks":     list,  # code chunks from the RAG agent
+  "generated_code":       str,   # code produced by the gen or edit agent
+  "changed_files":        list,  # files written to disk this round
+  "validation_feedback":  str,   # reason if validator says failed
+  "is_done":              bool   # true when all sub-questions are resolved
 }
 ```
 
@@ -126,40 +112,37 @@ User Instruction
 
 ## RAG Pipeline
 
+The RAG agent does not chunk by character count or token limit. It parses the HTML as an AST and turns each node into its own document so the retrieval is structurally aware.
+
 ```
 output/index.html
-     │
-     ▼
-  AST Parser (BeautifulSoup4)
-  Parse full HTML tree
-     │
-     ▼
-  AST-based Chunker
-  ┌─────────────────────────────────────────┐
-  │  Skip <HEAD>                             │
-  │  For each node in <BODY>:               │
-  │    • parent node  → one Document chunk  │
-  │    • each child   → one Document chunk  │
-  │  Each chunk carries metadata:           │
-  │    { tag, id, class, parent_tag,        │
-  │      file, depth }                      │
-  └─────────────────────────────────────────┘
-     │  list[Document]
-     ▼
-  LangChain Embedder
+      |
+      v
+AST Parser (BeautifulSoup4)
+      |
+      v
+AST Chunker
+  Skips <head>
+  Walks <body> tree
+  Each parent node becomes one Document
+  Each child node becomes one Document
+  Metadata per chunk: tag, id, class, parent_tag, file, depth, line number
+      |  list[Document]
+      v
+LangChain Embedder
   Chroma.from_documents(docs, embedding)
-     │
-     ▼
-  ChromaDB (local, persistent)
-     │
-     ▼  ← triggered per sub-question
-  Retriever  (similarity search)
-     │
-     ▼
-  retrieved_chunks → Manager / Code Edit Agent
+      |
+      v
+ChromaDB  (local, persistent)
+      |
+      v  similarity search triggered per sub-question
+Retriever
+      |
+      v
+retrieved_chunks  passed to Manager and Code Edit Agent
 ```
 
-Re-indexing is triggered by the **Router** every time `changed_files` is non-empty, keeping the vector store in sync with the latest file state.
+The Router triggers a full re-index every time `changed_files` is non-empty, so the vector store always reflects the current state of the output files.
 
 ---
 
@@ -167,28 +150,28 @@ Re-indexing is triggered by the **Router** every time `changed_files` is non-emp
 
 ```
 coding agent/
-├── agents/
-│   ├── planning_agent.py      # intent classification, sub-question decomp
-│   ├── manager_agent.py       # ReAct routing agent
-│   ├── rag_agent.py           # ChromaDB semantic retrieval
-│   ├── code_gen_agent.py      # HTML/CSS generation
-│   ├── code_edit_agent.py     # ReAct file editing agent
-│   └── validator_agent.py     # change validation + feedback
-├── graph/
-│   ├── state.py               # AgentState TypedDict
-│   ├── graph.py               # LangGraph nodes + edges
-│   └── router.py              # idx/retry management, re-indexing trigger
-├── tools/
-│   ├── file_tools.py          # read_file, create_file, edit_file, list_dir
-│   └── ast_tools.py           # HTML/CSS AST parsing for validator
-├── rag/
-│   ├── indexer.py             # chunk + embed → ChromaDB
-│   └── retriever.py           # semantic search
-├── prompts/                   # system prompts per agent
-├── output/                    # generated HTML + CSS files
-├── main.py                    # entry point
-├── requirements.txt
-└── .env                       # GROQ_API_KEY
+  agents/
+    planning_agent.py      intent classification and sub-question decomposition
+    manager_agent.py       ReAct routing agent
+    rag_agent.py           ChromaDB semantic retrieval
+    code_gen_agent.py      HTML/CSS generation from scratch
+    code_edit_agent.py     ReAct file editing agent
+    validator_agent.py     change validation and feedback
+  graph/
+    state.py               AgentState TypedDict
+    graph.py               LangGraph nodes and edges
+    router.py              idx and retry management, re-indexing trigger
+  tools/
+    file_tools.py          read_file, create_file, edit_file, list_dir
+    ast_tools.py           HTML/CSS AST parsing for the validator
+  rag/
+    indexer.py             AST chunker and Chroma.from_documents ingestion
+    retriever.py           similarity search over the vector store
+  prompts/                 system prompts, one file per agent
+  output/                  generated HTML and CSS land here
+  main.py                  entry point
+  requirements.txt
+  .env                     GROQ_API_KEY
 ```
 
 ---
@@ -198,25 +181,32 @@ coding agent/
 | Layer | Technology |
 |---|---|
 | Agent orchestration | LangGraph |
-| LLM | Groq (`langchain-groq`) |
-| Vector store | ChromaDB (local) |
-| Embeddings | LangChain embedder via `Chroma.from_documents()` |
-| HTML chunking | AST-based (parent + child nodes, with metadata) |
-| HTML/CSS parsing | BeautifulSoup4 + cssutils |
+| LLM | Groq via langchain-groq |
+| Vector store | ChromaDB local |
+| Embeddings | LangChain embedder, Chroma.from_documents |
+| HTML chunking | AST-based, parent and child nodes with metadata |
+| HTML/CSS parsing | BeautifulSoup4 and cssutils |
 
 ---
 
-## Quickstart
+## Getting Started
+
+Install dependencies:
 
 ```bash
-# 1. Install dependencies
 pip install -r requirements.txt
+```
 
-# 2. Set your Groq API key
-echo "GROQ_API_KEY=your_key_here" > .env
+Add your Groq API key to `.env`:
 
-# 3. Run
+```
+GROQ_API_KEY=your_key_here
+```
+
+Run it:
+
+```bash
 python main.py "Create a SaaS landing page for Acme with a hero section, features grid, and a green CTA button"
 ```
 
-Output files will be written to `output/`.
+Output is written to the `output/` folder.
