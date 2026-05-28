@@ -1,0 +1,24 @@
+# LangGraph + LangChain
+langgraph>=0.2.0
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-groq>=0.2.0
+langchain-community>=0.3.0
+
+# Vector store
+langchain-chroma>=0.1.0
+chromadb>=0.5.0
+
+# Embeddings
+sentence-transformers>=3.0.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# HTML/CSS parsing (for ast_tools)
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+cssutils>=2.11.0
+
+# Tokenization (for RAG chunking)
+tiktoken>=0.7.0
