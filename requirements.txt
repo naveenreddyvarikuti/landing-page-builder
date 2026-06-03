@@ -2,7 +2,7 @@
 langgraph>=0.2.0
 langchain>=0.3.0
 langchain-core>=0.3.0
-langchain-groq>=0.2.0
+langchain-openai>=0.3.0
 langchain-community>=0.3.0
 
 # Vector store
@@ -12,13 +12,14 @@ chromadb>=0.5.0
 # Embeddings (LangChain embedder used via Chroma.from_documents)
 langchain-huggingface>=0.1.0
 
+# State schema
+pydantic>=2.0.0
+
 # Environment
 python-dotenv>=1.0.0
 
-# HTML/CSS parsing (for ast_tools)
-beautifulsoup4>=4.12.0
-lxml>=5.0.0
-cssutils>=2.11.0
-
-# HTML/CSS AST chunking (for RAG indexer + validator)
-# BeautifulSoup4 already listed above handles the AST walk
+# Parsing HTML and CSS for RAG AST-based chunking
+tree-sitter>=0.22.0
+tree-sitter-html
+tree-sitter-css
+tree-sitter-javascript>=0.23.0
