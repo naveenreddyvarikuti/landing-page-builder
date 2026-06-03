@@ -29,3 +29,9 @@ class GlobalState(BaseModel):
         self.current_index += 1
         self.attempt = 1
         self.reviewer_feedback = None
+
+    def mark_failed(self) -> None:
+        self.status[self.current_index] = "failed"
+        self.current_index += 1
+        self.attempt = 1
+        self.reviewer_feedback = None

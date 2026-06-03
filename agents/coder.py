@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 from langchain_openai import AzureChatOpenAI
 from langgraph.prebuilt import create_react_agent
+from langgraph.checkpoint.memory import MemorySaver
 from dotenv import load_dotenv
 from tools.file_tools import read_file, create_file, edit_file, list_files, search_files
 
@@ -40,11 +41,34 @@ _model = AzureChatOpenAI(
     api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
     api_key=os.getenv("AZURE_OPENAI_API_KEY"),
 )
-_agent = create_react_agent(_model, _tools, prompt=_system_prompt)
+# checkpointer keeps each sub-question's conversation alive across retries
+_agent = create_react_agent(_model, _tools, prompt=_system_prompt, checkpointer=MemorySaver())
 
 
-def run_coder(user_message: str) -> str:
-    # design skill injected as context so the model has full guidelines during creation
-    content = f"{user_message}\n\n<design_guidelines>\n{_design_skill}\n</design_guidelines>"
-    result = _agent.invoke({"messages": [{"role": "user", "content": content}]})
-    return result["messages"][-1].content
+def _changed_files(messages) -> list[str]:
+    # pull file paths from every create_file / edit_file tool call in the thread
+    changed = []
+    for m in messages:
+        for call in getattr(m, "tool_calls", None) or []:
+            if call["name"] in ("create_file", "edit_file"):
+                path = call["args"].get("path")
+                if path and path not in changed:
+                    changed.append(path)
+    return changed
+
+
+def run_coder(task: str, thread_id: str, reviewer_feedback: str | None = None):
+    config = {"configurable": {"thread_id": thread_id}}
+
+    if reviewer_feedback:
+        # retry — history is already in the thread, so only send the feedback
+        content = (
+            f"Your previous attempt failed review.\n\n"
+            f"Reviewer feedback:\n{reviewer_feedback}\n\n"
+            f"Fix the issues and complete the original task."
+        )
+    else:
+        content = f"{task}\n\n<design_guidelines>\n{_design_skill}\n</design_guidelines>"
+
+    result = _agent.invoke({"messages": [{"role": "user", "content": content}]}, config)
+    return result["messages"][-1].content, _changed_files(result["messages"])

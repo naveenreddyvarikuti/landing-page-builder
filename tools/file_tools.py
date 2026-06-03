@@ -34,7 +34,7 @@ def edit_file(path: str, old_text: str, new_text: str) -> str:
     if old_text not in content:
         return f"Error: could not find the target text in {path}"
     # replace only the first occurrence to avoid unintended changes
-    file.write_text(content.replace(old_text, new_text, 1))
+    file.write_text(content.replace(old_text, new_text, 1), encoding="utf-8")
     return f"Edited {path}"
 
 
