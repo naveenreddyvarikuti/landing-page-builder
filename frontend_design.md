@@ -159,8 +159,10 @@ Rules:
 
 ## Implementation Notes
 
-- All in a single `index.html` with `<style>` and `<script>` tags — no external build tools
-- Load fonts via Google Fonts `@import` at top of `<style>`
+- ALWAYS split into three separate files: `index.html`, `style.css`, `script.js`.
+  Link them with `<link rel="stylesheet" href="style.css">` and `<script src="script.js"></script>`.
+  Never inline CSS in a `<style>` tag or JS in a `<script>` tag — keep them in their own files.
+- Load fonts via Google Fonts `@import` at the top of `style.css`
 - Use CSS custom properties (`--var`) for all colors and spacing
 - Mobile-first responsive — test at 375px, 768px, 1280px
 - Semantic HTML — `<nav>`, `<main>`, `<section>`, `<footer>`, proper heading hierarchy
