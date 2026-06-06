@@ -9,6 +9,7 @@ from agents.coder import run_coder
 from agents.reviewer import run_reviewer
 from agents.handlers import run_question, run_copy
 from state import GlobalState, SubQuestion
+from indexing.index_manager import index_workspace, index_file, is_empty
 
 
 def handle_code_task(state: GlobalState, sq: SubQuestion) -> bool:
@@ -34,6 +35,8 @@ def handle_code_task(state: GlobalState, sq: SubQuestion) -> bool:
 
         if review.passed:
             print(f"  review: PASS — {review.feedback}")
+            for f in changed:
+                index_file(f)
             return True
 
         print(f"  review: FAIL (attempt {state.attempt}) — {review.feedback}")
@@ -47,6 +50,10 @@ def handle_code_task(state: GlobalState, sq: SubQuestion) -> bool:
 def run_pipeline(user_input: str) -> None:
     state = run_orchestrator(user_input)
     print(f"\nIntent: {state.intent} | Tasks: {len(state.sub_questions)}\n")
+
+    if is_empty():
+        print("Indexing workspace...")
+        index_workspace()
 
     while not state.is_done():
         sq = state.current_sub_question()

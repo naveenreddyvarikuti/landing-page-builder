@@ -2,7 +2,7 @@ import os
 from langchain_openai import AzureChatOpenAI
 from langgraph.prebuilt import create_react_agent
 from dotenv import load_dotenv
-from tools.file_tools import read_file, list_files
+from tools.file_tools import read_file, list_files, search_codebase
 
 load_dotenv()
 
@@ -15,8 +15,8 @@ _llm = AzureChatOpenAI(
 
 _question_agent = create_react_agent(
     _llm,
-    tools=[read_file, list_files],
-    prompt="You answer questions about a landing page. Use list_files to see what files exist, then read_file to inspect them. Give clear, specific answers based only on what's in the files.",
+    tools=[search_codebase, read_file, list_files],
+    prompt="You answer questions about a landing page. Use search_codebase to find relevant code by concept or feature name, then read_file to inspect full file contents if needed. Give clear, specific answers based only on what's in the files.",
 )
 
 

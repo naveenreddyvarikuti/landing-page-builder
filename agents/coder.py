@@ -4,7 +4,7 @@ from langchain_openai import AzureChatOpenAI
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 from dotenv import load_dotenv
-from tools.file_tools import read_file, create_file, edit_file, list_files, search_files
+from tools.file_tools import read_file, create_file, edit_file, list_files, search_files, search_codebase
 
 load_dotenv()
 
@@ -18,7 +18,8 @@ TOOLS:
 - read_file: always read a file before editing it — never guess the content
 - create_file: use for new files only; if the file exists, use edit_file instead
 - edit_file: make surgical edits by replacing exact text; read the file first to get old_text
-- search_files: use when you need to find which file contains a specific class, id, or string
+- search_codebase: search by UI concept or feature name (e.g. "navbar styling", "hero animation") to find the right file and lines before editing — use this first on edit tasks
+- search_files: use when you need to find an exact string, class name, or id across files
 
 RULES:
 - Never fabricate file contents — always read first
@@ -34,7 +35,7 @@ DESIGN STANDARDS:
 - Production-quality copy — no lorem ipsum, no placeholder text
 - Every page must feel like it belongs to a funded startup"""
 
-_tools = [read_file, create_file, edit_file, list_files, search_files]
+_tools = [search_codebase, read_file, create_file, edit_file, list_files, search_files]
 _model = AzureChatOpenAI(
     azure_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),

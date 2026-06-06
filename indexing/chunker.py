@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from pathlib import Path
 import tree_sitter_html as tshtml
@@ -19,6 +20,7 @@ class Chunk:
     text: str
     start_line: int
     end_line: int
+    summary: str = ""      # filled in by Layer 4 enrichment
 
 
 def _walk(node):
@@ -37,6 +39,16 @@ def _make_chunk(file: str, node, source: bytes) -> Chunk:
     )
 
 
+def _merge(chunks: list[Chunk]) -> Chunk:
+    return Chunk(
+        file=chunks[0].file,
+        type="group",
+        text="\n\n".join(c.text for c in chunks),
+        start_line=chunks[0].start_line,
+        end_line=chunks[-1].end_line,
+    )
+
+
 def _tag_name(element, source: bytes) -> str:
     for child in element.children:
         if child.type == "start_tag":
@@ -52,12 +64,60 @@ def _chunk_css(source: bytes, file: str) -> list[Chunk]:
             for n in tree.root_node.children if n.type == "rule_set"]
 
 
+_SELECTOR_RE = re.compile(r"^\s*([.#]?[\w-]+)")
+
+
+def _base_selector(text: str) -> str:
+    m = _SELECTOR_RE.match(text)
+    return m.group(1) if m else ""
+
+
+def _group_css(chunks: list[Chunk]) -> list[Chunk]:
+    # merge consecutive rule_sets sharing a base selector into one component
+    # chunk, e.g. .navbar / .navbar.scrolled / .navbar a -> "navbar" chunk
+    grouped = []
+    i = 0
+    while i < len(chunks):
+        base = _base_selector(chunks[i].text)
+        j = i + 1
+        while j < len(chunks) and base and _base_selector(chunks[j].text) == base:
+            j += 1
+        group = chunks[i:j]
+        grouped.append(_merge(group) if len(group) > 1 else group[0])
+        i = j
+    return grouped
+
+
 def _chunk_js(source: bytes, file: str) -> list[Chunk]:
     # landing-page JS is mostly top-level statements (const decls, event listeners),
     # not named functions — so one chunk per top-level statement
     tree = Parser(_JS).parse(source)
     return [_make_chunk(file, n, source)
             for n in tree.root_node.children if n.is_named and n.type != "comment"]
+
+
+_DECL_RE = re.compile(r"^\s*(?:const|let|var)\s+([A-Za-z_$][\w$]*)")
+
+
+def _declared_name(text: str) -> str:
+    m = _DECL_RE.match(text)
+    return m.group(1) if m else ""
+
+
+def _group_js(chunks: list[Chunk]) -> list[Chunk]:
+    # merge a declaration with the immediately-following statements that
+    # reference it by name, e.g. `const navbar = ...` + its scroll listener
+    grouped = []
+    i = 0
+    while i < len(chunks):
+        name = _declared_name(chunks[i].text)
+        j = i + 1
+        while j < len(chunks) and name and re.search(rf"\b{re.escape(name)}\b", chunks[j].text):
+            j += 1
+        group = chunks[i:j]
+        grouped.append(_merge(group) if len(group) > 1 else group[0])
+        i = j
+    return grouped
 
 
 def _chunk_html(source: bytes, file: str) -> list[Chunk]:
@@ -79,9 +139,9 @@ def chunk_file(path: str) -> list[Chunk]:
     source = file.read_bytes()
     ext = file.suffix.lower()
     if ext == ".css":
-        return _chunk_css(source, path)
+        return _group_css(_chunk_css(source, path))
     if ext == ".js":
-        return _chunk_js(source, path)
+        return _group_js(_chunk_js(source, path))
     if ext in (".html", ".htm"):
         return _chunk_html(source, path)
     return []

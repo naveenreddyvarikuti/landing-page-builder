@@ -47,6 +47,24 @@ def list_files() -> list[str]:
 
 
 @tool
+def search_codebase(query: str) -> str:
+    """Search the indexed codebase for code relevant to a query. Use this to find
+    which file and lines handle a specific UI feature, component, or behaviour."""
+    from indexing.index_manager import search
+    hits = search(query)
+    if not hits:
+        return "No relevant code found."
+    parts = []
+    for h in hits:
+        parts.append(
+            f"[{h['file']} lines {h['lines']}] ({h['type']})\n"
+            f"Summary: {h['summary']}\n"
+            f"```\n{h['text']}\n```"
+        )
+    return "\n\n---\n\n".join(parts)
+
+
+@tool
 def search_files(query: str) -> str:
     """Search for a string across all workspace files. Returns matching lines with file path and line number."""
     results = []
