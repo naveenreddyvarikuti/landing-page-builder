@@ -5,12 +5,8 @@ langchain-core>=0.3.0
 langchain-openai>=0.3.0
 langchain-community>=0.3.0
 
-# Vector store
-langchain-chroma>=0.1.0
+# Vector store (used directly; ships a built-in all-MiniLM-L6-v2 embedder)
 chromadb>=0.5.0
-
-# Embeddings (LangChain embedder used via Chroma.from_documents)
-langchain-huggingface>=0.1.0
 
 # State schema
 pydantic>=2.0.0
