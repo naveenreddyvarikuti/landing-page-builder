@@ -1,12 +1,11 @@
 import re
 from dataclasses import dataclass
-from pathlib import Path
 import tree_sitter_html as tshtml
 import tree_sitter_css as tscss
 import tree_sitter_javascript as tsjs
 from tree_sitter import Language, Parser
 
-WORKSPACE = Path(__file__).parent.parent / "workspace"
+from workspace_context import get_workspace
 
 _CSS = Language(tscss.language())
 _HTML = Language(tshtml.language())
@@ -133,7 +132,7 @@ def _chunk_html(source: bytes, file: str) -> list[Chunk]:
 
 
 def chunk_file(path: str) -> list[Chunk]:
-    file = WORKSPACE / path
+    file = get_workspace() / path
     if not file.exists():
         return []
     source = file.read_bytes()

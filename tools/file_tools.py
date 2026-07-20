@@ -1,13 +1,24 @@
 from pathlib import Path
 from langchain_core.tools import tool
+from workspace_context import get_workspace
 
-WORKSPACE = Path(__file__).parent.parent / "workspace"
+
+def _resolve_in_workspace(path: str) -> Path | None:
+    """Resolve `path` against the active workspace and return it, or None if it escapes the workspace."""
+    workspace = get_workspace()
+    workspace_root = workspace.resolve()
+    candidate = (workspace / path).resolve()
+    if not candidate.is_relative_to(workspace_root):
+        return None
+    return candidate
 
 
 @tool
 def read_file(path: str) -> str:
     """Read the contents of a file in the workspace. Path is relative to workspace/."""
-    file = WORKSPACE / path
+    file = _resolve_in_workspace(path)
+    if file is None:
+        return f"Error: {path} is outside the workspace"
     if not file.exists():
         return f"Error: {path} does not exist"
     return file.read_text(encoding="utf-8")
@@ -16,7 +27,9 @@ def read_file(path: str) -> str:
 @tool
 def create_file(path: str, content: str) -> str:
     """Create a new file in the workspace with the given content. Path is relative to workspace/."""
-    file = WORKSPACE / path
+    file = _resolve_in_workspace(path)
+    if file is None:
+        return f"Error: {path} is outside the workspace"
     if file.exists():
         return f"Error: {path} already exists. Use edit_file to modify it."
     file.parent.mkdir(parents=True, exist_ok=True)
@@ -27,7 +40,9 @@ def create_file(path: str, content: str) -> str:
 @tool
 def edit_file(path: str, old_text: str, new_text: str) -> str:
     """Edit a file by replacing old_text with new_text. Always read the file first to get the exact text."""
-    file = WORKSPACE / path
+    file = _resolve_in_workspace(path)
+    if file is None:
+        return f"Error: {path} is outside the workspace"
     if not file.exists():
         return f"Error: {path} does not exist"
     content = file.read_text(encoding="utf-8")
@@ -41,9 +56,10 @@ def edit_file(path: str, old_text: str, new_text: str) -> str:
 @tool
 def list_files() -> list[str]:
     """List all files currently in the workspace."""
-    if not WORKSPACE.exists():
+    workspace = get_workspace()
+    if not workspace.exists():
         return []
-    return [str(f.relative_to(WORKSPACE)) for f in WORKSPACE.rglob("*") if f.is_file()]
+    return [str(f.relative_to(workspace)) for f in workspace.rglob("*") if f.is_file()]
 
 
 @tool
@@ -67,12 +83,13 @@ def search_codebase(query: str) -> str:
 @tool
 def search_files(query: str) -> str:
     """Search for a string across all workspace files. Returns matching lines with file path and line number."""
+    workspace = get_workspace()
     results = []
-    for file in WORKSPACE.rglob("*"):
+    for file in workspace.rglob("*"):
         if not file.is_file():
             continue
         for i, line in enumerate(file.read_text(encoding="utf-8").splitlines(), start=1):
             if query.lower() in line.lower():
-                rel_path = file.relative_to(WORKSPACE)
+                rel_path = file.relative_to(workspace)
                 results.append(f"{rel_path}:{i}: {line.strip()}")
     return "\n".join(results) if results else "No matches found"

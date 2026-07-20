@@ -12,14 +12,16 @@ from state import GlobalState, SubQuestion
 from indexing.index_manager import index_workspace, index_file, is_empty
 
 
-def handle_code_task(state: GlobalState, sq: SubQuestion) -> bool:
+def handle_code_task(state: GlobalState, sq: SubQuestion):
+    """Yields structured events for each step. Returns True/False for overall success
+    (retrieve via `ok = yield from handle_code_task(...)`)."""
     # one thread per sub-question so retries share conversation history
     thread_id = str(uuid.uuid4())
     feedback = None
 
     while state.attempt <= state.max_attempts:
         summary, changed = run_coder(sq.question, thread_id, feedback)
-        print(f"  coder: {summary}")
+        yield {"type": "coder_step", "summary": summary}
 
         if not changed:
             # nothing was written — nothing to review
@@ -34,12 +36,12 @@ def handle_code_task(state: GlobalState, sq: SubQuestion) -> bool:
         })
 
         if review.passed:
-            print(f"  review: PASS — {review.feedback}")
+            yield {"type": "review", "passed": True, "feedback": review.feedback}
             for f in changed:
                 index_file(f)
             return True
 
-        print(f"  review: FAIL (attempt {state.attempt}) — {review.feedback}")
+        yield {"type": "review", "passed": False, "feedback": review.feedback, "attempt": state.attempt}
         feedback = review.feedback
         state.reviewer_feedback = review.feedback
         state.attempt += 1
@@ -47,34 +49,60 @@ def handle_code_task(state: GlobalState, sq: SubQuestion) -> bool:
     return False
 
 
-def run_pipeline(user_input: str) -> None:
+def run_pipeline(user_input: str):
+    """Yields structured events describing pipeline progress."""
     state = run_orchestrator(user_input)
-    print(f"\nIntent: {state.intent} | Tasks: {len(state.sub_questions)}\n")
+    yield {"type": "orchestrator", "intent": state.intent, "tasks": len(state.sub_questions)}
 
     if is_empty():
-        print("Indexing workspace...")
+        yield {"type": "indexing_start"}
         index_workspace()
 
     while not state.is_done():
         sq = state.current_sub_question()
         idx, total = state.current_index + 1, len(state.sub_questions)
-        print(f"[{idx}/{total}] ({sq.type}) {sq.question}")
+        yield {"type": "task_start", "index": idx, "total": total, "task_type": sq.type, "question": sq.question}
 
         if sq.type == "code":
-            ok = handle_code_task(state, sq)
+            ok = yield from handle_code_task(state, sq)
             if ok:
                 state.advance()
             else:
-                print("  giving up after max attempts.")
+                yield {"type": "task_failed", "question": sq.question}
                 state.mark_failed()
         elif sq.type == "copy":
-            print(f"  → {run_copy(sq.question)}")
+            result = run_copy(sq.question)
+            yield {"type": "copy_result", "result": result}
             state.advance()
         else:
-            print(f"  → {run_question(sq.question)}")
+            result = run_question(sq.question)
+            yield {"type": "question_result", "result": result}
             state.advance()
 
-    print("\nDone.\n")
+    yield {"type": "done"}
+
+
+def print_event(event: dict) -> None:
+    etype = event["type"]
+    if etype == "orchestrator":
+        print(f"\nIntent: {event['intent']} | Tasks: {event['tasks']}\n")
+    elif etype == "indexing_start":
+        print("Indexing workspace...")
+    elif etype == "task_start":
+        print(f"[{event['index']}/{event['total']}] ({event['task_type']}) {event['question']}")
+    elif etype == "coder_step":
+        print(f"  coder: {event['summary']}")
+    elif etype == "review":
+        if event["passed"]:
+            print(f"  review: PASS — {event['feedback']}")
+        else:
+            print(f"  review: FAIL (attempt {event['attempt']}) — {event['feedback']}")
+    elif etype == "task_failed":
+        print("  giving up after max attempts.")
+    elif etype in ("copy_result", "question_result"):
+        print(f"  → {event['result']}")
+    elif etype == "done":
+        print("\nDone.\n")
 
 
 def main():
@@ -91,7 +119,8 @@ def main():
             print("Goodbye!")
             break
 
-        run_pipeline(user_input)
+        for event in run_pipeline(user_input):
+            print_event(event)
 
 
 if __name__ == "__main__":

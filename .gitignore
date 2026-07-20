@@ -2,3 +2,7 @@
 codingagent/
 __pycache__/
 *.pyc
+session_workspaces/
+INTERVIEW_PLAYBOOK.md
+DESIGN_DECISIONS_QA.md
+DEPLOYMENT_MASTER_PROMPT.md

@@ -1,0 +1,307 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+/* make the `hidden` attribute always win, even over display:flex on .workspace */
+[hidden] {
+    display: none !important;
+}
+
+:root {
+    --bg-dark: #0f172a;
+    --panel: #ffffff;
+    --border: #e2e8f0;
+    --accent: #6366f1;
+    --text: #1e293b;
+    --muted: #64748b;
+    --page-bg: #f1f5f9;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--text);
+    background: var(--page-bg);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---- top banner ---- */
+.banner {
+    background: var(--bg-dark);
+    color: #fff;
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.title {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.pitch {
+    color: #cbd5e1;
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+}
+
+.banner-links {
+    display: flex;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.banner-name {
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.banner-links a {
+    color: #a5b4fc;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.banner-links a:hover {
+    color: #fff;
+}
+
+/* ---- persistent info strip ---- */
+.info-bar {
+    background: #fef9c3;
+    color: #854d0e;
+    border-bottom: 1px solid #fde68a;
+    padding: 0.6rem 1.5rem;
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+/* ---- showcase (landing view) ---- */
+.showcase {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2rem 1.5rem;
+}
+
+.showcase-head {
+    text-align: center;
+    margin-bottom: 1.75rem;
+}
+
+.showcase-head h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.showcase-head p {
+    color: var(--muted);
+    margin-top: 0.5rem;
+    font-size: 0.95rem;
+}
+
+.example-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    justify-content: center;
+}
+
+.example-card {
+    width: 340px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.example-thumb {
+    height: 230px;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+    background: #0f172a;
+}
+
+/* render each site at desktop width, then scale down to a thumbnail (340/1200) */
+.example-thumb iframe {
+    width: 1200px;
+    height: 820px;
+    border: 0;
+    transform: scale(0.2833);
+    transform-origin: top left;
+    pointer-events: none;
+}
+
+.example-meta {
+    padding: 1rem;
+}
+
+.example-meta h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.example-meta p {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin: 0.25rem 0 0.75rem;
+}
+
+.example-meta a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.example-meta a:hover {
+    text-decoration: underline;
+}
+
+.try-cta {
+    text-align: center;
+    margin-top: 2.25rem;
+}
+
+.try-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0.85rem 2rem;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.try-btn:hover {
+    background: #4f46e5;
+}
+
+/* ---- two-panel workspace ---- */
+.workspace {
+    flex: 1;
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    min-height: 0; /* lets inner panels scroll instead of overflowing the page */
+}
+
+.chat-panel,
+.preview-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.chat-panel {
+    flex: 0 0 40%;
+    max-width: 40%;
+}
+
+.preview-panel {
+    flex: 1;
+}
+
+.timeline {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+.timeline-line {
+    font-size: 0.88rem;
+    line-height: 1.45;
+    margin-bottom: 0.6rem;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.chat-input-area {
+    border-top: 1px solid var(--border);
+    padding: 1rem;
+}
+
+.input-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-end;
+}
+
+#message-input {
+    flex: 1;
+    resize: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.6rem;
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: var(--text);
+}
+
+#message-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.send-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.6rem 1.1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.send-btn:hover {
+    background: #4f46e5;
+}
+
+.preview-placeholder {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+}
+
+.preview-frame {
+    flex: 1;
+    width: 100%;
+    border: 0;
+    border-radius: 8px;
+}
+
+.placeholder {
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+/* ---- mobile: stack the two panels ---- */
+@media (max-width: 768px) {
+    .workspace {
+        flex-direction: column;
+    }
+
+    .chat-panel {
+        flex: 1 1 auto;
+        max-width: 100%;
+    }
+}

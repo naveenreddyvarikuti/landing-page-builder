@@ -1,0 +1,20 @@
+# Python virtualenv (huge; deps are reinstalled inside the image)
+codingagent/
+
+# Python caches
+**/__pycache__/
+*.pyc
+
+# secrets — provided at runtime by Azure Container Apps, never baked into the image
+.env
+
+# version control
+.git/
+
+# runtime/generated data (recreated as needed)
+session_workspaces/
+indexing/chroma_db/
+workspace/
+
+# one-off dev script
+gen_examples.py
